@@ -135,49 +135,12 @@ export class SessionsEmitterConsumer implements OnModuleInit {
 
     switch (message.eventType) {
       case SessionsEmitterEventType.CLOSED: {
-        this.cacheManager.delete(key);
-        this.logger.debug(`Closed session = : ${key.slice(0, 10)}`);
-
-        this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
-          key,
-          type: CHANGE_TYPE.EXPIRED,
-          deanonymizedData,
-        });
+        this.deleteSession({ key, deanonymizedData });
         break;
       }
       case SessionsEmitterEventType.KEEP_ALIVE:
       case SessionsEmitterEventType.OPENED: {
-        const cachedSession = this.cacheManager.get<Session>(key);
-        if (cachedSession) {
-          this.logger.debug(
-            `Retrieved Session = : ${key.slice(0, 10)} ${Date.now() - cachedSession.firstTimeSeenUTC} ${cachedSession.timesRefreshed} ${message.eventType}`,
-          );
-          this.cacheManager.set<Session>(key, {
-            firstTimeSeenUTC: cachedSession.firstTimeSeenUTC,
-            timesRefreshed: cachedSession.timesRefreshed + 1,
-          });
-
-          this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
-            key,
-            type: CHANGE_TYPE.REFRESHED,
-            deanonymizedData,
-          });
-          break;
-        }
-
-        const firstTimeSeenUTC = Date.now();
-        this.logger.debug(
-          `New Session = : ${key.slice(0, 10)} 0 ${message.eventType}`,
-        );
-        this.cacheManager.set<Session>(key, {
-          firstTimeSeenUTC,
-          timesRefreshed: 0,
-        });
-        this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
-          key,
-          type: CHANGE_TYPE.OPENED,
-          deanonymizedData,
-        });
+        this.createOrUpdateSession({ key, message, deanonymizedData });
         break;
       }
       default: {
@@ -186,5 +149,65 @@ export class SessionsEmitterConsumer implements OnModuleInit {
         );
       }
     }
+  }
+
+  deleteSession({
+    key,
+    deanonymizedData,
+  }: {
+    key: string;
+    deanonymizedData: DeanonymizerResponse;
+  }) {
+    this.cacheManager.delete(key);
+    this.logger.debug(`Closed session = : ${key.slice(0, 10)}`);
+
+    this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
+      key,
+      type: CHANGE_TYPE.EXPIRED,
+      deanonymizedData,
+    });
+  }
+
+  createOrUpdateSession({
+    key,
+    deanonymizedData,
+    message,
+  }: {
+    key: string;
+    deanonymizedData: DeanonymizerResponse;
+    message: SessionsEmitterMessage;
+  }) {
+    const cachedSession = this.cacheManager.get<Session>(key);
+
+    if (cachedSession) {
+      this.logger.debug(
+        `Retrieved Session = : ${key.slice(0, 10)} ${Date.now() - cachedSession.firstTimeSeenUTC} ${cachedSession.timesRefreshed} ${message.eventType}`,
+      );
+      this.cacheManager.set<Session>(key, {
+        firstTimeSeenUTC: cachedSession.firstTimeSeenUTC,
+        timesRefreshed: cachedSession.timesRefreshed + 1,
+      });
+
+      this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
+        key,
+        type: CHANGE_TYPE.REFRESHED,
+        deanonymizedData,
+      });
+      return;
+    }
+
+    const firstTimeSeenUTC = Date.now();
+    this.logger.debug(
+      `New Session = : ${key.slice(0, 10)} 0 ${message.eventType}`,
+    );
+    this.cacheManager.set<Session>(key, {
+      firstTimeSeenUTC,
+      timesRefreshed: 0,
+    });
+    this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
+      key,
+      type: CHANGE_TYPE.OPENED,
+      deanonymizedData,
+    });
   }
 }
