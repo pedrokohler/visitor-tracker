@@ -1,17 +1,16 @@
 import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { WebSocket } from 'ws';
-import * as NodeCache from 'node-cache';
-import { EventEmitter2 } from '@nestjs/event-emitter';
 
+import { CacheService } from 'src/cache/cache.service';
 import { SessionsEmitterMessage, SessionsEmitterEventType } from './types';
-import { Events } from './events';
+import { Events } from '../events';
 
 type Session = {
   firstTimeSeenUTC: number;
   timesRefreshed: number;
 };
 
-const TTL_IN_SECONDS = 60;
 const SERVER_URL = 'ws://localhost:8080';
 
 enum CHANGE_TYPE {
@@ -23,24 +22,43 @@ enum CHANGE_TYPE {
 
 @Injectable()
 export class SessionsEmitterConsumer implements OnModuleInit {
+  private readonly CACHE_NAMESPACE = 'SESSIONS_EMITTER';
   private readonly logger = new Logger(SessionsEmitterConsumer.name);
+  private readonly cacheManager: ReturnType<
+    CacheService['createNamespaceWrappedCacheManager']
+  >;
   private socketClient: WebSocket;
-  private readonly cacheManager: NodeCache;
 
-  constructor(private eventEmitter: EventEmitter2) {
-    this.cacheManager = new NodeCache({
-      stdTTL: TTL_IN_SECONDS,
-      checkperiod: 0.5,
-    });
-    this.cacheManager.on('expired', (key: string, value: Session) => {
-      this.logger.debug(
-        `On expired = key, value: ${key} ${Date.now() - value.firstTimeSeenUTC} ${value.timesRefreshed}`,
-      );
+  constructor(
+    private eventEmitter: EventEmitter2,
+    private cacheService: CacheService,
+  ) {
+    this.cacheManager = this.cacheService.createNamespaceWrappedCacheManager(
+      this.CACHE_NAMESPACE,
+    );
+  }
 
-      this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
-        key,
-        type: CHANGE_TYPE.EXPIRED,
-      });
+  @OnEvent(Events.CACHE_EXPIRED)
+  handleSessionExpired({
+    namespace,
+    key,
+    value,
+  }: {
+    namespace: string;
+    key: string;
+    value: Session;
+  }) {
+    if (namespace !== this.CACHE_NAMESPACE) {
+      return;
+    }
+
+    this.logger.debug(
+      `On expired = key, value: ${key} ${Date.now() - value.firstTimeSeenUTC} ${value.timesRefreshed}`,
+    );
+
+    this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
+      key,
+      type: CHANGE_TYPE.EXPIRED,
     });
   }
 
@@ -90,7 +108,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
 
     switch (message.eventType) {
       case SessionsEmitterEventType.CLOSED: {
-        this.cacheManager.del(key);
+        this.cacheManager.delete(key);
         this.logger.debug(`Closed session = : ${key.slice(0, 10)}`);
 
         this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
