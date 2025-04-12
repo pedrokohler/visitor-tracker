@@ -2,7 +2,7 @@ export type DeanonymizerRequest = {
   ip: string;
 };
 
-type Contact = {
+export type Contact = {
   guid: string;
   name: string;
   title?: string;
@@ -10,7 +10,7 @@ type Contact = {
   phoneNumbers?: string[];
 };
 
-type Company = {
+export type Company = {
   guid: string;
   name: string;
   domain: string;
