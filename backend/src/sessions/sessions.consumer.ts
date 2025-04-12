@@ -6,6 +6,7 @@ import { CacheService, WrappedCacheManager } from 'src/cache/cache.service';
 import { SessionsEmitterMessage, SessionsEmitterEventType } from './types';
 import { Events } from '../events';
 import { DeanonymizerService } from 'src/deanonymizer/deanonymizer.service';
+import { DeanonymizerResponse } from 'src/deanonymizer/types';
 
 type Session = {
   firstTimeSeenUTC: number;
@@ -14,6 +15,10 @@ type Session = {
 
 const SERVER_URL = 'ws://localhost:8080';
 const SESSION_EXPIRATION_LIMIT_IN_SECONDS = 60;
+const GUID_BLACKLIST = [
+  'b8e8879e-3382-4908-8f1e-7638473d0913',
+  '830886a1-728e-4d94-a808-44a92841154b',
+];
 
 enum CHANGE_TYPE {
   CLOSED = 'closed',
@@ -74,7 +79,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
       this.initializeSocketClient(),
     );
     this.socketClient.on('message', (data: Buffer) => {
-      this.processSessionsEmitterMessage(data);
+      void this.processMessage(data);
     });
   }
 
@@ -82,35 +87,51 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     this.initializeSocketClient();
   }
 
-  parseSessionsEmitterMessage(buffer: Buffer) {
+  parseMessage(buffer: Buffer) {
     const messageString = buffer.toString();
     try {
       const message = JSON.parse(messageString) as SessionsEmitterMessage;
       return message;
     } catch (e) {
-      if (e instanceof Error) {
-        this.logger.error(`parseSessionsEmitterMessage ~ e: ${e.message}`);
-        return;
-      }
-
-      this.logger.error(`parseSessionsEmitterMessage ~ e: ${e}`);
+      this.logger.error(`parseSessionsEmitterMessage ~ e: ${(e as Error).message}`);
     }
   }
 
-  async processSessionsEmitterMessage(buffer: Buffer) {
-    const message = this.parseSessionsEmitterMessage(buffer);
+  async processMessage(buffer: Buffer) {
+    const message = this.parseMessage(buffer);
 
     if (!message) {
       return;
     }
 
-    const key = message.ip;
-
-    const deanonymizedData = await this.deanonymizerService.deanomyizeIp(key);
+    const deanonymizedData = await this.deanonymizerService.deanomyizeIp(
+      message.ip,
+    );
 
     if (!deanonymizedData) {
       return;
     }
+
+    const isBlacklisted = deanonymizedData.data.company?.guid
+      ? GUID_BLACKLIST.includes(deanonymizedData.data.company?.guid)
+      : false;
+
+    if (isBlacklisted) {
+      this.logger.debug(`Ip is blacklisted: ${message.ip}`);
+      return;
+    }
+
+    return this.processMessagePerType({ message, deanonymizedData });
+  }
+
+  processMessagePerType({
+    deanonymizedData,
+    message,
+  }: {
+    deanonymizedData: DeanonymizerResponse;
+    message: SessionsEmitterMessage;
+  }) {
+    const key = message.ip;
 
     switch (message.eventType) {
       case SessionsEmitterEventType.CLOSED: {
