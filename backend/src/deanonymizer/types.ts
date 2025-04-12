@@ -1,0 +1,25 @@
+export type DeanonymizerRequest = {
+  ip: string;
+};
+
+type Contact = {
+  guid: string;
+  name: string;
+  title?: string;
+  emailAddresses?: string[];
+  phoneNumbers?: string[];
+};
+
+type Company = {
+  guid: string;
+  name: string;
+  domain: string;
+};
+
+export type DeanonymizerResponse = {
+  ip: string;
+  data: {
+    company?: Company;
+    contact?: Contact;
+  };
+};

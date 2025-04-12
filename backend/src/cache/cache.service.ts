@@ -3,7 +3,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as NodeCache from 'node-cache';
 import { Events } from 'src/events';
 
-const TTL_IN_SECONDS = 60;
+const DEFAULT_TTL_IN_SECONDS = 600;
+
+export type WrappedCacheManager = ReturnType<
+  CacheService['createNamespaceWrappedCacheManager']
+>;
 
 @Injectable()
 export class CacheService {
@@ -12,7 +16,7 @@ export class CacheService {
 
   constructor(private eventEmitter: EventEmitter2) {
     this.cacheManager = new NodeCache({
-      stdTTL: TTL_IN_SECONDS,
+      stdTTL: DEFAULT_TTL_IN_SECONDS,
       checkperiod: 0.5,
     });
 
@@ -57,7 +61,10 @@ export class CacheService {
     return this.cacheManager.set<T>(cacheKey, value, ttl);
   }
 
-  createNamespaceWrappedCacheManager(namespace: string) {
+  createNamespaceWrappedCacheManager(
+    namespace: string,
+    defaultTtlInSeconds: number | string = DEFAULT_TTL_IN_SECONDS,
+  ) {
     const deleteFn = (key: string): number => {
       return this.delete(namespace, key);
     };
@@ -69,7 +76,7 @@ export class CacheService {
     const set = <T>(
       key: string,
       value: T,
-      ttl: number | string = TTL_IN_SECONDS,
+      ttl: number | string = defaultTtlInSeconds,
     ) => {
       return this.set<T>(namespace, key, value, ttl);
     };

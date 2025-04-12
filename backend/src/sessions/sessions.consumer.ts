@@ -2,9 +2,10 @@ import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { WebSocket } from 'ws';
 
-import { CacheService } from 'src/cache/cache.service';
+import { CacheService, WrappedCacheManager } from 'src/cache/cache.service';
 import { SessionsEmitterMessage, SessionsEmitterEventType } from './types';
 import { Events } from '../events';
+import { DeanonymizerService } from 'src/deanonymizer/deanonymizer.service';
 
 type Session = {
   firstTimeSeenUTC: number;
@@ -12,6 +13,7 @@ type Session = {
 };
 
 const SERVER_URL = 'ws://localhost:8080';
+const SESSION_EXPIRATION_LIMIT_IN_SECONDS = 60;
 
 enum CHANGE_TYPE {
   CLOSED = 'closed',
@@ -24,17 +26,17 @@ enum CHANGE_TYPE {
 export class SessionsEmitterConsumer implements OnModuleInit {
   private readonly CACHE_NAMESPACE = 'SESSIONS_EMITTER';
   private readonly logger = new Logger(SessionsEmitterConsumer.name);
-  private readonly cacheManager: ReturnType<
-    CacheService['createNamespaceWrappedCacheManager']
-  >;
+  private readonly cacheManager: WrappedCacheManager;
   private socketClient: WebSocket;
 
   constructor(
     private eventEmitter: EventEmitter2,
     private cacheService: CacheService,
+    private deanonymizerService: DeanonymizerService,
   ) {
     this.cacheManager = this.cacheService.createNamespaceWrappedCacheManager(
       this.CACHE_NAMESPACE,
+      SESSION_EXPIRATION_LIMIT_IN_SECONDS,
     );
   }
 
@@ -53,7 +55,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     }
 
     this.logger.debug(
-      `On expired = key, value: ${key} ${Date.now() - value.firstTimeSeenUTC} ${value.timesRefreshed}`,
+      `Expired Session = : ${key} ${Date.now() - value.firstTimeSeenUTC} ${value.timesRefreshed}`,
     );
 
     this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
@@ -87,17 +89,15 @@ export class SessionsEmitterConsumer implements OnModuleInit {
       return message;
     } catch (e) {
       if (e instanceof Error) {
-        this.logger.error(
-          `SessionsService ~ parseSessionsEmitterMessage ~ e: ${e.message}`,
-        );
+        this.logger.error(`parseSessionsEmitterMessage ~ e: ${e.message}`);
         return;
       }
 
-      this.logger.error(`SessionsService ~ parseSessionsEmitterMessage ~ e: ${e}`);
+      this.logger.error(`parseSessionsEmitterMessage ~ e: ${e}`);
     }
   }
 
-  processSessionsEmitterMessage(buffer: Buffer) {
+  async processSessionsEmitterMessage(buffer: Buffer) {
     const message = this.parseSessionsEmitterMessage(buffer);
 
     if (!message) {
@@ -105,6 +105,12 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     }
 
     const key = message.ip;
+
+    const deanonymizedData = await this.deanonymizerService.deanomyizeIp(key);
+
+    if (!deanonymizedData) {
+      return;
+    }
 
     switch (message.eventType) {
       case SessionsEmitterEventType.CLOSED: {
@@ -114,12 +120,12 @@ export class SessionsEmitterConsumer implements OnModuleInit {
         this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
           key,
           type: CHANGE_TYPE.EXPIRED,
+          deanonymizedData,
         });
         break;
       }
       case SessionsEmitterEventType.KEEP_ALIVE:
-      case SessionsEmitterEventType.OPENED:
-      default: {
+      case SessionsEmitterEventType.OPENED: {
         const cachedSession = this.cacheManager.get<Session>(key);
         if (cachedSession) {
           this.logger.debug(
@@ -133,6 +139,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
           this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
             key,
             type: CHANGE_TYPE.REFRESHED,
+            deanonymizedData,
           });
           break;
         }
@@ -148,7 +155,14 @@ export class SessionsEmitterConsumer implements OnModuleInit {
         this.eventEmitter.emit(Events.SESSIONS_EMITTER_SESSION_CHANGED, {
           key,
           type: CHANGE_TYPE.OPENED,
+          deanonymizedData,
         });
+        break;
+      }
+      default: {
+        this.logger.warn(
+          `Message failed to process ${JSON.stringify(message)}`,
+        );
       }
     }
   }
