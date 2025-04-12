@@ -1,8 +1,9 @@
 import { Module } from '@nestjs/common';
-import { SessionsService } from './sessions.service';
+import { SessionsEmitterConsumer } from './sessionsEmitter.consumer';
 import { SessionsGateway } from './sessions.gateway';
 
 @Module({
-  providers: [SessionsGateway, SessionsService],
+  imports: [],
+  providers: [SessionsGateway, SessionsEmitterConsumer],
 })
 export class SessionsModule {}

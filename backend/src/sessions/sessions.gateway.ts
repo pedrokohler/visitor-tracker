@@ -1,38 +1,17 @@
-import {
-  WebSocketGateway,
-  SubscribeMessage,
-  MessageBody,
-} from '@nestjs/websockets';
-import { SessionsService } from './sessions.service';
-import { CreateSessionDto } from './dto/create-session.dto';
-import { UpdateSessionDto } from './dto/update-session.dto';
+import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { WebSocket } from 'ws';
+import { OnEvent } from '@nestjs/event-emitter';
+import { Events } from './events';
 
 @WebSocketGateway()
 export class SessionsGateway {
-  constructor(private readonly sessionsService: SessionsService) {}
+  constructor() {}
 
-  @SubscribeMessage('createSession')
-  create(@MessageBody() createSessionDto: CreateSessionDto) {
-    return this.sessionsService.create(createSessionDto);
-  }
+  @WebSocketServer()
+  server: WebSocket;
 
-  @SubscribeMessage('findAllSessions')
-  findAll() {
-    return this.sessionsService.findAll();
-  }
-
-  @SubscribeMessage('findOneSession')
-  findOne(@MessageBody() id: number) {
-    return this.sessionsService.findOne(id);
-  }
-
-  @SubscribeMessage('updateSession')
-  update(@MessageBody() updateSessionDto: UpdateSessionDto) {
-    return this.sessionsService.update(updateSessionDto.id, updateSessionDto);
-  }
-
-  @SubscribeMessage('removeSession')
-  remove(@MessageBody() id: number) {
-    return this.sessionsService.remove(id);
+  @OnEvent(Events.SESSIONS_EMITTER_SESSION_CHANGED)
+  handleSessionChangedEvent(payload: any) {
+    this.server.emit('message', payload);
   }
 }

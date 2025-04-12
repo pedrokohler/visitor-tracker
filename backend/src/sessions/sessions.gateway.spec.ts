@@ -1,13 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SessionsGateway } from './sessions.gateway';
-import { SessionsService } from './sessions.service';
+import { SessionsEmitterConsumer } from './sessionsEmitter.consumer';
 
 describe('SessionsGateway', () => {
   let gateway: SessionsGateway;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [SessionsGateway, SessionsService],
+      providers: [SessionsGateway, SessionsEmitterConsumer],
     }).compile();
 
     gateway = module.get<SessionsGateway>(SessionsGateway);
