@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as NodeCache from 'node-cache';
 import { Events } from 'src/events';
-
-const DEFAULT_TTL_IN_SECONDS = 600;
+import { parseNumberFromString } from 'src/utils/parseNumberFromString';
 
 export type WrappedCacheManager = ReturnType<
   CacheService['createNamespaceWrappedCacheManager']
@@ -13,11 +13,30 @@ export type WrappedCacheManager = ReturnType<
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
   private readonly cacheManager: NodeCache;
+  private readonly DEFAULT_CACHE_TTL_IN_SECONDS: number | string;
+  private readonly DEFAULT_CACHE_CHECK_PERIOD_IN_SECONDS: number;
 
-  constructor(private eventEmitter: EventEmitter2) {
+  constructor(
+    private eventEmitter: EventEmitter2,
+    private configService: ConfigService,
+  ) {
+    this.DEFAULT_CACHE_TTL_IN_SECONDS = parseNumberFromString({
+      stringToParse: this.configService.get<string>(
+        'DEFAULT_CACHE_TTL_IN_SECONDS',
+      ),
+      fallbackValue: 600,
+    });
+
+    this.DEFAULT_CACHE_CHECK_PERIOD_IN_SECONDS = parseNumberFromString({
+      stringToParse: this.configService.get<string>(
+        'DEFAULT_CACHE_CHECK_PERIOD_IN_SECONDS',
+      ),
+      fallbackValue: 600,
+    });
+
     this.cacheManager = new NodeCache({
-      stdTTL: DEFAULT_TTL_IN_SECONDS,
-      checkperiod: 0.5,
+      stdTTL: this.DEFAULT_CACHE_TTL_IN_SECONDS,
+      checkperiod: this.DEFAULT_CACHE_CHECK_PERIOD_IN_SECONDS,
     });
 
     this.cacheManager.on('expired', (cacheKey: string, value: unknown) => {
@@ -73,7 +92,7 @@ export class CacheService {
 
   createNamespaceWrappedCacheManager(
     namespace: string,
-    defaultTtlInSeconds: number | string = DEFAULT_TTL_IN_SECONDS,
+    defaultTtlInSeconds: number | string = this.DEFAULT_CACHE_TTL_IN_SECONDS,
   ) {
     const deleteFn = (key: string): number => {
       return this.delete(namespace, key);

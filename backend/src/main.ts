@@ -1,38 +1,60 @@
 import { NestFactory } from '@nestjs/core';
+import { ConsoleLogger, Logger, LogLevel } from '@nestjs/common';
+
 import { AppModule } from './app.module';
-import { ConsoleLogger, LogLevel } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { SocketIoAdapter } from './sessions/socket.io.adapter';
+import { parseArrayFromString } from './utils/parseArrayFromString';
 
-const getLogLevels = () => {
+const getLogLevels = (logger: Logger): LogLevel[] => {
   const defaultLevels = ['fatal', 'error', 'warn', 'log'] as LogLevel[];
-  const logLevelsStr = process.env.LOG_LEVELS;
 
-  if (!logLevelsStr) {
-    console.warn('No log levels provided.');
-    return defaultLevels;
-  }
+  const configLevels = parseArrayFromString({
+    stringToParse: process.env.LOG_LEVELS,
+    logger,
+    warnMessage: 'No log levels provided. Using default levels.',
+  }) as LogLevel[];
 
-  try {
-    const logLevels = JSON.parse(logLevelsStr) as LogLevel[];
-    if (Array.isArray(logLevels)) {
-      return logLevels;
-    }
-    console.warn('Log levels are not array and thus have been ignored.');
-  } catch (e) {
-    console.error("Log levels couldn't be parsed.", e);
-  }
+  return configLevels.length === 0 ? defaultLevels : configLevels;
+};
 
-  return defaultLevels;
+const getHosts = ({
+  configService,
+  logger,
+}: {
+  configService: ConfigService<unknown, boolean>;
+  logger: Logger;
+}) => {
+  const hostsConfig = configService.get<string>('CORS_ALLOWED_ORIGINS');
+
+  return parseArrayFromString({
+    stringToParse: hostsConfig,
+    logger,
+    warnMessage: 'No valid CORS_ALLOWED_ORIGIN provided. Using empty array.',
+  });
 };
 
 async function bootstrap() {
-  const logLevels = getLogLevels();
+  const logger = new Logger('BOOTSTRAPPING');
+  const logLevels = getLogLevels(logger);
   const app = await NestFactory.create(AppModule, {
     logger: new ConsoleLogger({
       logLevels,
     }),
   });
 
-  app.enableCors({ origin: 'http://localhost:5173' });
+  const configService = app.get(ConfigService);
+
+  const hosts = getHosts({ configService, logger });
+
+  app.enableCors({
+    origin: hosts,
+    credentials: true,
+  });
+
+  app.useWebSocketAdapter(new SocketIoAdapter(app, configService));
+  app.enableCors({ origin: hosts });
+
   await app.listen(process.env.PORT ?? 3000);
 }
 

@@ -4,23 +4,35 @@ import { AxiosError } from 'axios';
 import { CacheService, WrappedCacheManager } from 'src/cache/cache.service';
 import { DeanonymizerResponse } from './types';
 import { catchError, firstValueFrom } from 'rxjs';
+import { ConfigService } from '@nestjs/config';
+import { parseNumberFromString } from 'src/utils/parseNumberFromString';
 
-const URL = 'http://localhost:4830/deanonymize';
 const IP_NOT_FOUND_ERROR = 'Data not found for IP';
-const MAX_RETRIES = 5;
 @Injectable()
 export class DeanonymizerService {
   private readonly logger = new Logger(DeanonymizerService.name);
   private readonly CACHE_NAMESPACE = 'DEANONYMIZER';
   private readonly cacheManager: WrappedCacheManager;
+  private readonly DEANONYMIZER_URL: string;
+  private readonly MAX_RETRIES: number;
 
   constructor(
     private cacheService: CacheService,
     private httpService: HttpService,
+    private configService: ConfigService,
   ) {
     this.cacheManager = this.cacheService.createNamespaceWrappedCacheManager(
       this.CACHE_NAMESPACE,
     );
+
+    this.DEANONYMIZER_URL =
+      this.configService.get<string>('DEANONYMIZER_URL') ??
+      'http://localhost:4830/deanonymize';
+
+    this.MAX_RETRIES = parseNumberFromString({
+      stringToParse: this.configService.get<string>('MAX_FETCH_RETRIES'),
+      fallbackValue: 5,
+    });
   }
 
   async deanomyizeIp(
@@ -37,7 +49,7 @@ export class DeanonymizerService {
     try {
       const { data } = await firstValueFrom(
         this.httpService
-          .post<DeanonymizerResponse>(URL, {
+          .post<DeanonymizerResponse>(this.DEANONYMIZER_URL, {
             ip,
           })
           .pipe(
@@ -62,7 +74,7 @@ export class DeanonymizerService {
         return;
       }
 
-      if (retries >= MAX_RETRIES) {
+      if (retries >= this.MAX_RETRIES) {
         this.logger.error((error as Error).message);
         return;
       }

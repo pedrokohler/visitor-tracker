@@ -7,24 +7,18 @@ import { SessionsEmitterMessage, SessionsEmitterEventType } from './types';
 import { Events } from '../events';
 import { DeanonymizerService } from 'src/deanonymizer/deanonymizer.service';
 import { Company, Contact, DeanonymizerResponse } from 'src/deanonymizer/types';
+import { ConfigService } from '@nestjs/config';
+import { parseArrayFromString } from 'src/utils/parseArrayFromString';
+import { parseNumberFromString } from 'src/utils/parseNumberFromString';
 
 export type Session = {
   ip: string;
   firstTimeSeenUTC: number;
   lastActivityUTC: number;
   timesRefreshed: number;
-  contact: null | Omit<Contact, 'guid'>;
-  company: null | Omit<Company, 'guid'>;
+  contact: null | Contact;
+  company: null | Company;
 };
-
-const SERVER_URL = 'ws://localhost:8080';
-const SESSION_EXPIRATION_LIMIT_IN_SECONDS = 60;
-const GUID_BLACKLIST = [
-  'b8e8879e-3382-4908-8f1e-7638473d0913',
-  '830886a1-728e-4d94-a808-44a92841154b',
-];
-
-const EMAIL_DOMAIN_BLACKLIST = ['gmail', 'yahoo', 'hotmail', 'outlook', 'aol'];
 
 enum CHANGE_TYPE {
   CLOSED = 'closed',
@@ -40,19 +34,47 @@ export class SessionsEmitterConsumer implements OnModuleInit {
   private readonly cacheManager: WrappedCacheManager;
   private readonly blacklistedEmailRegexps: RegExp[];
   private socketClient: WebSocket;
+  private readonly COMPANY_GUID_BLACKLIST: string[];
+  private readonly EMAIL_DOMAIN_BLACKLIST: string[];
+  private readonly SESSIONS_EMITTER_SERVER_URL: string;
+  private readonly SESSION_EXPIRATION_LIMIT_IN_SECONDS: string | number;
 
   constructor(
     private eventEmitter: EventEmitter2,
     private cacheService: CacheService,
     private deanonymizerService: DeanonymizerService,
+    private configService: ConfigService,
   ) {
-    this.cacheManager = this.cacheService.createNamespaceWrappedCacheManager(
-      this.CACHE_NAMESPACE,
-      SESSION_EXPIRATION_LIMIT_IN_SECONDS,
+    this.COMPANY_GUID_BLACKLIST = parseArrayFromString({
+      stringToParse: this.configService.get<string>('COMPANY_GUID_BLACKLIST'),
+      logger: this.logger,
+      warnMessage: 'COMPANY_GUID_BLACKLIST not found. Using default',
+    });
+
+    this.EMAIL_DOMAIN_BLACKLIST = parseArrayFromString({
+      stringToParse: this.configService.get<string>('EMAIL_DOMAIN_BLACKLIST'),
+      logger: this.logger,
+      warnMessage: 'EMAIL_DOMAIN_BLACKLIST not found. Using default',
+    });
+
+    this.blacklistedEmailRegexps = this.EMAIL_DOMAIN_BLACKLIST.map(
+      (domain) => new RegExp(`.*@${domain}\\.*.`),
     );
 
-    this.blacklistedEmailRegexps = EMAIL_DOMAIN_BLACKLIST.map(
-      (domain) => new RegExp(`.*@${domain}\.*.`),
+    this.SESSIONS_EMITTER_SERVER_URL =
+      this.configService.get<string>('SESSIONS_EMITTER_SERVER_URL') ??
+      'ws://localhost:8080';
+
+    this.SESSION_EXPIRATION_LIMIT_IN_SECONDS = parseNumberFromString({
+      stringToParse: this.configService.get<string>(
+        'SESSION_EXPIRATION_LIMIT_IN_SECONDS',
+      ),
+      fallbackValue: 60,
+    });
+
+    this.cacheManager = this.cacheService.createNamespaceWrappedCacheManager(
+      this.CACHE_NAMESPACE,
+      this.SESSION_EXPIRATION_LIMIT_IN_SECONDS,
     );
   }
 
@@ -85,7 +107,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     this.socketClient?.removeAllListeners();
     this.socketClient?.terminate();
 
-    this.socketClient = new WebSocket(SERVER_URL);
+    this.socketClient = new WebSocket(this.SESSIONS_EMITTER_SERVER_URL);
     this.socketClient.addEventListener('close', () =>
       this.initializeSocketClient(),
     );
@@ -124,7 +146,9 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     }
 
     const isBlacklisted = deanonymizedData.data.company?.guid
-      ? GUID_BLACKLIST.includes(deanonymizedData.data.company?.guid)
+      ? this.COMPANY_GUID_BLACKLIST.includes(
+          deanonymizedData.data.company?.guid,
+        )
       : false;
 
     if (isBlacklisted) {
@@ -194,7 +218,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     );
 
     const contact = this.adaptContactData(deanonymizedData.data.contact);
-    const company = this.adaptCompanyData(deanonymizedData.data.company);
+    const company = deanonymizedData.data.company || null;
 
     const session: Session = {
       ip: deanonymizedData.ip,
@@ -238,19 +262,6 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     });
   }
 
-  private adaptCompanyData(company?: Company): Session['company'] {
-    if (!company) {
-      return null;
-    }
-
-    const { domain, name } = company;
-
-    return {
-      domain,
-      name,
-    };
-  }
-
   private adaptContactData(contact?: Contact): Session['contact'] {
     if (!contact) {
       return null;
@@ -263,13 +274,9 @@ export class SessionsEmitterConsumer implements OnModuleInit {
         )
       : [];
 
-    const { name, phoneNumbers, title } = contact;
-
     return {
+      ...contact,
       emailAddresses,
-      name,
-      phoneNumbers,
-      title,
     };
   }
 

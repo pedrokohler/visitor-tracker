@@ -1,13 +1,9 @@
 import { WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 import { WebSocket } from 'ws';
 import { OnEvent } from '@nestjs/event-emitter';
-import { Events } from '../events';
 
-@WebSocketGateway({
-  cors: {
-    origin: ['http://localhost:5173'],
-  },
-})
+import { Events } from '../events';
+@WebSocketGateway()
 export class SessionsGateway {
   constructor() {}
 
