@@ -144,7 +144,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
       return;
     }
 
-    const deanonymizedData = await this.deanonymizerService.deanomyizeIp(
+    const deanonymizedData = await this.deanonymizerService.deanonymizeIp(
       message.ip,
     );
 

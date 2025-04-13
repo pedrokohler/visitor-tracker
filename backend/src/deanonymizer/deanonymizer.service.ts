@@ -35,7 +35,7 @@ export class DeanonymizerService {
     });
   }
 
-  async deanomyizeIp(
+  async deanonymizeIp(
     ip: string,
     retries: number = 0,
   ): Promise<DeanonymizerResponse | undefined> {
@@ -89,7 +89,7 @@ export class DeanonymizerService {
   ): Promise<DeanonymizerResponse | undefined> {
     return new Promise((resolve) => {
       setTimeout(() => {
-        void this.deanomyizeIp(ip, retries).then((result) => resolve(result));
+        void this.deanonymizeIp(ip, retries).then((result) => resolve(result));
       }, 200);
     });
   }
