@@ -121,7 +121,7 @@ function useSessions() {
   useEffect(() => {
     const fetchOpenSessions = async () => {
       try {
-        const response = await fetch(SERVER_URL);
+        const response = await fetch(`${SERVER_URL}/sessions`);
         const json = await response.json();
         setSessions(json.map(adaptSession));
       } catch (e: unknown) {
