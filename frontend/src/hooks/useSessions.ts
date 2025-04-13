@@ -95,7 +95,7 @@ function useSessions() {
       totalSessionTime += session.secondsSinceFirstSeen;
 
       if (session.company) {
-        const key = session.company.name;
+        const key = session.company.guid;
         identifiedCompanies.add(key);
         usersFromIdentifiedCompanies++;
       }
@@ -141,4 +141,4 @@ function useSessions() {
   };
 }
 
-export { useSessions };
+export default useSessions;

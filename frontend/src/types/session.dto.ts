@@ -5,6 +5,6 @@ export type SessionDto = {
   firstTimeSeenUTC: number;
   lastActivityUTC: number;
   timesRefreshed: number;
-  contact: null | Omit<Contact, "guid">;
-  company: null | Omit<Company, "guid">;
+  contact: null | Contact;
+  company: null | Company;
 };
