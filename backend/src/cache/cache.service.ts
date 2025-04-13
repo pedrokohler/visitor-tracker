@@ -31,7 +31,7 @@ export class CacheService {
       stringToParse: this.configService.get<string>(
         'DEFAULT_CACHE_CHECK_PERIOD_IN_SECONDS',
       ),
-      fallbackValue: 600,
+      fallbackValue: 0.5,
     });
 
     this.cacheManager = new NodeCache({
