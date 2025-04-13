@@ -1,35 +1,167 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useCallback, useContext, useEffect, useState } from "react";
+import { WebSocketContext } from "./contexts/WebSocket";
+import Table from "react-bootstrap/Table";
+import { useInterval } from "usehooks-ts";
 
-function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+enum CHANGE_TYPE {
+  CLOSED = "closed",
+  EXPIRED = "expired",
+  OPENED = "opened",
+  REFRESHED = "refreshed",
 }
 
-export default App
+export type Contact = {
+  guid: string;
+  name: string;
+  title?: string;
+  emailAddresses?: string[];
+  phoneNumbers?: string[];
+};
+
+export type Company = {
+  guid: string;
+  name: string;
+  domain: string;
+};
+
+type SessionDto = {
+  ip: string;
+  firstTimeSeenUTC: number;
+  lastActivityUTC: number;
+  timesRefreshed: number;
+  contact: null | Omit<Contact, "guid">;
+  company: null | Omit<Company, "guid">;
+};
+
+type Session = SessionDto & {
+  secondsSinceFirstSeen: number;
+  secondsSinceLastActivity: number;
+};
+
+function App() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [averageSessionTime, setAverageSessionTime] = useState(0);
+  const [averageUsersPerCompany, setAverageUsersPerCompany] = useState(0);
+  const socket = useContext(WebSocketContext);
+
+  const adaptSession = useCallback((session: SessionDto) => {
+    return {
+      ...session,
+      secondsSinceFirstSeen: Math.round(
+        (Date.now() - session.firstTimeSeenUTC) / 1000
+      ),
+      secondsSinceLastActivity: Math.round(
+        (Date.now() - session.lastActivityUTC) / 1000
+      ),
+    };
+  }, []);
+
+  useEffect(() => {
+    socket.on("connect", () => {
+      console.log("socket connected");
+    });
+
+    socket.on("message", (payload) => {
+      if ([CHANGE_TYPE.CLOSED, CHANGE_TYPE.EXPIRED].includes(payload.type)) {
+        return setSessions((prev) =>
+          prev.filter((session) => session.ip !== payload.key)
+        );
+      }
+
+      if (payload.type === CHANGE_TYPE.OPENED) {
+        return setSessions((prev) => [...prev, adaptSession(payload.session)]);
+      }
+
+      setSessions((prev) => {
+        const changedIndex = prev.findIndex(
+          (session) => session.ip === payload.key
+        );
+        if (changedIndex === -1) {
+          return [...prev, adaptSession(payload.session)];
+        }
+
+        prev[changedIndex] = adaptSession(payload.session);
+        return prev;
+      });
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("message");
+    };
+  }, [socket, adaptSession]);
+
+  useEffect(() => {
+    const identifiedCompanies = new Set();
+    let usersFromIdentifiedCompanies = 0;
+    let totalSessionTime = 0;
+    for (let i = 0; i < sessions.length; i++) {
+      const session = sessions[i];
+      totalSessionTime += session.secondsSinceFirstSeen;
+
+      if (session.company) {
+        const key = session.company.name;
+        identifiedCompanies.add(key);
+        usersFromIdentifiedCompanies++;
+      }
+    }
+
+    const averageSessionTime =
+      Math.round((totalSessionTime / sessions.length) * 100) / 100;
+    setAverageSessionTime(averageSessionTime || 0);
+
+    const averageUsersPerCompany =
+      Math.round(
+        (usersFromIdentifiedCompanies / identifiedCompanies.size) * 100
+      ) / 100;
+    setAverageUsersPerCompany(averageUsersPerCompany || 0);
+  }, [sessions]);
+
+  useInterval(() => {
+    setSessions((prev) => prev.map(adaptSession));
+  }, 500);
+
+  return (
+    <div className="w-full h-full p-4">
+      <Table className="" striped bordered hover>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>IP</th>
+            <th>Time since first seen (ms)</th>
+            <th>Time since last activity (ms)</th>
+            <th>Company Name</th>
+            <th>Company Domain</th>
+            <th>Contact Name</th>
+            <th>Contact Title</th>
+            <th>Contact Emails</th>
+            <th>Contact Phone Numbers</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sessions.map((session, i) => (
+            <tr className="text-center" key={session.ip}>
+              <td>{i}</td>
+              <td>{session.ip}</td>
+              <td>{session.secondsSinceFirstSeen}</td>
+              <td>{session.secondsSinceLastActivity}</td>
+              <td>{session.company?.name}</td>
+              <td>{session.company?.domain}</td>
+              <td>{session.contact?.name}</td>
+              <td>{session.contact?.title}</td>
+              <td>{JSON.stringify(session.contact?.emailAddresses ?? [])}</td>
+              <td>{JSON.stringify(session.contact?.phoneNumbers ?? [])}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+
+      <div className="absolute bottom-0">
+        <div>Average Session Time: {averageSessionTime} seconds</div>
+        <div>Average Users Per Company: {averageUsersPerCompany} users</div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
