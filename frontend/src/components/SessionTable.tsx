@@ -5,13 +5,13 @@ import { Session } from "../types";
 
 function SessionTable({ sessions }: { sessions: Session[] }) {
   return (
-    <Table striped bordered hover>
-      <thead>
+    <Table className="w-full" striped bordered hover>
+      <thead className="text-center">
         <tr>
           <th>#</th>
           <th>IP</th>
-          <th>Time since first seen (s)</th>
-          <th>Time since last activity (s)</th>
+          <th>Seconds since first seen</th>
+          <th>Seconds since last activity</th>
           <th>Company Name</th>
           <th>Company Domain</th>
           <th>Contact Name</th>
