@@ -220,7 +220,7 @@ function App() {
         </tbody>
       </Table>
 
-      <div className="absolute bottom-0">
+      <div className="absolute bottom-4">
         <div>Average Session Time: {averageSessionTime} seconds</div>
         <div>Average Users Per Company: {averageUsersPerCompany} users</div>
       </div>
