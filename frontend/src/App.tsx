@@ -1,7 +1,8 @@
 import { useCallback, useContext, useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useInterval } from "usehooks-ts";
 import { WebSocketContext } from "./contexts/WebSocket";
 import Table from "react-bootstrap/Table";
-import { useInterval } from "usehooks-ts";
 
 enum CHANGE_TYPE {
   CLOSED = "closed",
@@ -36,6 +37,8 @@ type SessionDto = {
 type Session = SessionDto & {
   secondsSinceFirstSeen: number;
   secondsSinceLastActivity: number;
+  removing?: boolean;
+  adding?: boolean;
 };
 
 const SERVER_URL = "http://localhost:3000/sessions";
@@ -58,20 +61,44 @@ function App() {
     };
   }, []);
 
+  const removeSessionWithAnimation = useCallback((ip: string) => {
+    setSessions((prev) =>
+      prev.map((session) =>
+        session.ip === ip ? { ...session, removing: true } : session
+      )
+    );
+
+    setTimeout(() => {
+      setSessions((prev) => prev.filter((session) => session.ip !== ip));
+    }, 1000);
+  }, []);
+
+  const addSessionsWithAnimation = useCallback(
+    (session: Session) => {
+      setSessions((prev) => [
+        ...prev,
+        { ...adaptSession(session), adding: true },
+      ]);
+
+      setTimeout(() => {
+        setSessions((prev) =>
+          prev.map((s) => (s.ip !== session.ip ? s : { ...s, adding: false }))
+        );
+      }, 1000);
+    },
+    [adaptSession]
+  );
+
   useEffect(() => {
-    socket.on("connect", () => {
-      console.log("socket connected");
-    });
+    socket.on("connect", () => console.log("socket connected"));
 
     socket.on("message", (payload) => {
       if ([CHANGE_TYPE.CLOSED, CHANGE_TYPE.EXPIRED].includes(payload.type)) {
-        return setSessions((prev) =>
-          prev.filter((session) => session.ip !== payload.key)
-        );
+        return removeSessionWithAnimation(payload.key);
       }
 
       if (payload.type === CHANGE_TYPE.OPENED) {
-        return setSessions((prev) => [...prev, adaptSession(payload.session)]);
+        return addSessionsWithAnimation(payload.session);
       }
 
       setSessions((prev) => {
@@ -79,11 +106,11 @@ function App() {
           (session) => session.ip === payload.key
         );
         if (changedIndex === -1) {
-          return [...prev, adaptSession(payload.session)];
+          return [...prev, { ...adaptSession(payload.session) }];
         }
 
         prev[changedIndex] = adaptSession(payload.session);
-        return prev;
+        return [...prev];
       });
     });
 
@@ -91,7 +118,12 @@ function App() {
       socket.off("connect");
       socket.off("message");
     };
-  }, [socket, adaptSession]);
+  }, [
+    socket,
+    adaptSession,
+    removeSessionWithAnimation,
+    addSessionsWithAnimation,
+  ]);
 
   useEffect(() => {
     const identifiedCompanies = new Set();
@@ -141,7 +173,7 @@ function App() {
 
   return (
     <div className="w-full h-full p-4">
-      <Table className="" striped bordered hover>
+      <Table striped bordered hover>
         <thead>
           <tr>
             <th>#</th>
@@ -157,20 +189,34 @@ function App() {
           </tr>
         </thead>
         <tbody>
-          {sessions.map((session, i) => (
-            <tr className="text-center" key={session.ip}>
-              <td>{i}</td>
-              <td>{session.ip}</td>
-              <td>{session.secondsSinceFirstSeen}</td>
-              <td>{session.secondsSinceLastActivity}</td>
-              <td>{session.company?.name}</td>
-              <td>{session.company?.domain}</td>
-              <td>{session.contact?.name}</td>
-              <td>{session.contact?.title}</td>
-              <td>{JSON.stringify(session.contact?.emailAddresses ?? [])}</td>
-              <td>{JSON.stringify(session.contact?.phoneNumbers ?? [])}</td>
-            </tr>
-          ))}
+          <AnimatePresence>
+            {sessions.map((session, i) => (
+              <motion.tr
+                key={session.ip}
+                initial={{
+                  backgroundColor: session.adding ? "#99ff99" : "#ffffff",
+                  opacity: session.adding ? 0 : 1,
+                }}
+                animate={{
+                  backgroundColor: session.removing ? "#ff9999" : "#ffffff",
+                  opacity: session.removing ? 0 : 1,
+                }}
+                transition={{ duration: 1 }}
+                className="text-center"
+              >
+                <td>{i}</td>
+                <td>{session.ip}</td>
+                <td>{session.secondsSinceFirstSeen}</td>
+                <td>{session.secondsSinceLastActivity}</td>
+                <td>{session.company?.name}</td>
+                <td>{session.company?.domain}</td>
+                <td>{session.contact?.name}</td>
+                <td>{session.contact?.title}</td>
+                <td>{JSON.stringify(session.contact?.emailAddresses ?? [])}</td>
+                <td>{JSON.stringify(session.contact?.phoneNumbers ?? [])}</td>
+              </motion.tr>
+            ))}
+          </AnimatePresence>
         </tbody>
       </Table>
 
