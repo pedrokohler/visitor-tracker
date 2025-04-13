@@ -1,5 +1,5 @@
 import SessionTable from "./components/SessionTable";
-import useSessions from "./hooks/useSessions";
+import { useSessions } from "./hooks/useSessions";
 
 function App() {
   const { sessions, averageSessionTime, averageUsersPerCompany } =

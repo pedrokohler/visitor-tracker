@@ -58,7 +58,7 @@ function useSessions() {
   useEffect(() => {
     socket.on("connect", () => console.log("socket connected"));
 
-    socket.on("message", (payload: MessageDto) => {
+    socket.on("session_changed", (payload: MessageDto) => {
       if ([MessageType.CLOSED, MessageType.EXPIRED].includes(payload.type)) {
         return removeSessionWithDelay(payload.key);
       }
@@ -82,7 +82,7 @@ function useSessions() {
 
     return () => {
       socket.off("connect");
-      socket.off("message");
+      socket.off("session_changed");
     };
   }, [socket, adaptSession, removeSessionWithDelay, addSessionsWithDelay]);
 
@@ -141,4 +141,4 @@ function useSessions() {
   };
 }
 
-export default useSessions;
+export { useSessions };

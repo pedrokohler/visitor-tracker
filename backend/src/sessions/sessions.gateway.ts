@@ -16,6 +16,6 @@ export class SessionsGateway {
 
   @OnEvent(Events.SESSIONS_EMITTER_SESSION_CHANGED)
   handleSessionChangedEvent(payload: any) {
-    this.server.emit('message', payload);
+    this.server.emit('session_changed', payload);
   }
 }
