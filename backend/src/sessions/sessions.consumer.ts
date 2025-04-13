@@ -58,7 +58,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     });
 
     this.blacklistedEmailRegexps = this.EMAIL_DOMAIN_BLACKLIST.map(
-      (domain) => new RegExp(`.*@${domain}\\.*.`),
+      (domain) => new RegExp(`.*@${domain}\\..*`),
     );
 
     this.SESSIONS_EMITTER_SERVER_URL =
