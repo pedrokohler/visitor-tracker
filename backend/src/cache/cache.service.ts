@@ -61,6 +61,16 @@ export class CacheService {
     return this.cacheManager.set<T>(cacheKey, value, ttl);
   }
 
+  getAll<T>(namespace: string) {
+    const keys = this.cacheManager.keys().filter((cacheKey) => {
+      const { namespace: keyNamespace } =
+        this.extractNamespaceAndKeyFromCacheKey(cacheKey);
+      return keyNamespace === namespace;
+    });
+
+    return this.cacheManager.mget<T>(keys);
+  }
+
   createNamespaceWrappedCacheManager(
     namespace: string,
     defaultTtlInSeconds: number | string = DEFAULT_TTL_IN_SECONDS,
@@ -81,10 +91,15 @@ export class CacheService {
       return this.set<T>(namespace, key, value, ttl);
     };
 
+    const getAll = <T>() => {
+      return this.getAll<T>(namespace);
+    };
+
     return {
       delete: deleteFn,
       get,
       set,
+      getAll,
     };
   }
 }

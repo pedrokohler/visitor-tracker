@@ -38,6 +38,8 @@ type Session = SessionDto & {
   secondsSinceLastActivity: number;
 };
 
+const SERVER_URL = "http://localhost:3000/sessions";
+
 function App() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [averageSessionTime, setAverageSessionTime] = useState(0);
@@ -120,6 +122,22 @@ function App() {
   useInterval(() => {
     setSessions((prev) => prev.map(adaptSession));
   }, 500);
+
+  useEffect(() => {
+    const fetchOpenSessions = async () => {
+      try {
+        const response = await fetch(SERVER_URL);
+        const json = await response.json();
+        setSessions(json.map(adaptSession));
+      } catch (e: unknown) {
+        console.error(
+          `failed to fetch initial sessions: ${(e as Error).message}`
+        );
+      }
+    };
+
+    fetchOpenSessions();
+  }, [adaptSession]);
 
   return (
     <div className="w-full h-full p-4">

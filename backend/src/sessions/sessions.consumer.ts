@@ -8,7 +8,7 @@ import { Events } from '../events';
 import { DeanonymizerService } from 'src/deanonymizer/deanonymizer.service';
 import { Company, Contact, DeanonymizerResponse } from 'src/deanonymizer/types';
 
-type Session = {
+export type Session = {
   ip: string;
   firstTimeSeenUTC: number;
   lastActivityUTC: number;
@@ -80,7 +80,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     });
   }
 
-  initializeSocketClient() {
+  private initializeSocketClient() {
     this.logger.log('INITIALIZING NEW CONNECTION');
     this.socketClient?.removeAllListeners();
     this.socketClient?.terminate();
@@ -98,7 +98,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     this.initializeSocketClient();
   }
 
-  parseMessage(buffer: Buffer) {
+  private parseMessage(buffer: Buffer) {
     const messageString = buffer.toString();
     try {
       const message = JSON.parse(messageString) as SessionsEmitterMessage;
@@ -108,7 +108,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     }
   }
 
-  async processMessage(buffer: Buffer) {
+  private async processMessage(buffer: Buffer) {
     const message = this.parseMessage(buffer);
 
     if (!message) {
@@ -135,7 +135,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     return this.processMessagePerType({ message, deanonymizedData });
   }
 
-  processMessagePerType({
+  private processMessagePerType({
     deanonymizedData,
     message,
   }: {
@@ -162,7 +162,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     }
   }
 
-  deleteSession(key: string) {
+  private deleteSession(key: string) {
     this.cacheManager.delete(key);
     this.logger.debug(`Closed session = : ${key.slice(0, 10)}`);
 
@@ -172,7 +172,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     });
   }
 
-  createOrUpdateSession({
+  private createOrUpdateSession({
     key,
     deanonymizedData,
     message,
@@ -213,7 +213,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     });
   }
 
-  updateSession({
+  private updateSession({
     key,
     cachedSession,
   }: {
@@ -238,7 +238,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     });
   }
 
-  adaptCompanyData(company?: Company): Session['company'] {
+  private adaptCompanyData(company?: Company): Session['company'] {
     if (!company) {
       return null;
     }
@@ -251,7 +251,7 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     };
   }
 
-  adaptContactData(contact?: Contact): Session['contact'] {
+  private adaptContactData(contact?: Contact): Session['contact'] {
     if (!contact) {
       return null;
     }
@@ -271,5 +271,10 @@ export class SessionsEmitterConsumer implements OnModuleInit {
       phoneNumbers,
       title,
     };
+  }
+
+  public getAllSession() {
+    const cachedSessions = this.cacheManager.getAll<Session>();
+    return Object.values(cachedSessions);
   }
 }
