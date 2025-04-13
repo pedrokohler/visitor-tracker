@@ -23,7 +23,7 @@ function SessionTable({ sessions }: { sessions: Session[] }) {
       <tbody>
         <AnimatePresence>
           {sessions.map((session, i) => (
-            <SessionRow session={session} index={i} />
+            <SessionRow key={session.ip} session={session} index={i} />
           ))}
         </AnimatePresence>
       </tbody>
