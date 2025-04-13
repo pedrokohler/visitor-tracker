@@ -108,6 +108,13 @@ export class SessionsEmitterConsumer implements OnModuleInit {
     this.socketClient?.terminate();
 
     this.socketClient = new WebSocket(this.SESSIONS_EMITTER_SERVER_URL);
+
+    this.socketClient.onerror = (e) => {
+      this.logger.error(`Failed to connect to sessionsEmitter socket: ${e.error}`);
+      this.logger.error(`Exiting application.`);
+      process.exit(1);
+    };
+
     this.socketClient.addEventListener('close', () =>
       this.initializeSocketClient(),
     );
