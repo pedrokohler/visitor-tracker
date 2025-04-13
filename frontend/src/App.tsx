@@ -178,8 +178,8 @@ function App() {
           <tr>
             <th>#</th>
             <th>IP</th>
-            <th>Time since first seen (ms)</th>
-            <th>Time since last activity (ms)</th>
+            <th>Time since first seen (s)</th>
+            <th>Time since last activity (s)</th>
             <th>Company Name</th>
             <th>Company Domain</th>
             <th>Contact Name</th>
