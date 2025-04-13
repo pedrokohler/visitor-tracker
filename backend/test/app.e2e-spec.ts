@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import {} from 'rxjs';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -16,10 +17,17 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    await app.close();
+  });
+
   it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
+    jest.useFakeTimers();
+    return request(app.getHttpServer()).get('/').expect(200).expect('Pong!');
+  });
+
+  it('/sessions (GET)', () => {
+    jest.useFakeTimers();
+    return request(app.getHttpServer()).get('/sessions').expect(200).expect([]);
   });
 });
