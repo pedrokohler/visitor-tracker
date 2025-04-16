@@ -43,7 +43,7 @@ To clone and build our API server, open a terminal and execute the following:
 
 ```bash
 $ git clone git@github.com:pedrokohler/visitor-tracker.git
-$ cd visitor-tracker/thid-party-apis
+$ cd visitor-tracker/third-party-apis
 $ npm install
 $ npx tsc
 ```
