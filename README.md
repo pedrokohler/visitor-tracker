@@ -5,11 +5,11 @@ This is a full-stack web application designed to simulate real-time visitor acti
 
 ### Project Structure
 
-The repository contains two distinct directories:
+The repository contains three distinct directories:
 
 * /frontend - React.js UI built with Vite.
 * /backend - API service built with NestJS.
-* /thid-party-apis
+* /thid-party-apis (mocked third-party apis, used as recieved from instructions)
 
 For further instructions regarding each project, take a look at the respective `README.md` file.
 
